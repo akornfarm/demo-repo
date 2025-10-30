@@ -174,30 +174,34 @@ function manifest(env) {
 }
 
 async function handleInvocation(env, payload) {
-  switch (payload.method) {
+  const { method, params = {} } = payload;
+
+  switch (method) {
     case "listTools":
+    case "tools/list":
       return { tools };
-    case "callTool": {
-      const { name, arguments: args = {} } = payload.params;
+    case "callTool":
+    case "tools/call": {
+      const { name, arguments: args = {} } = params;
       if (!name) {
         throw new Error("Tool invocation missing name");
       }
 
       switch (name) {
         case "list_decks":
-          return { result: await listDecks(env) };
+          return await listDecks(env);
         case "list_cards":
-          return { result: await listCards(env, args) };
+          return await listCards(env, args);
         case "create_card":
-          return { result: await createCard(env, args) };
+          return await createCard(env, args);
         case "record_review":
-          return { result: await recordReview(env, args) };
+          return await recordReview(env, args);
         default:
           throw new Error(`Unknown tool: ${name}`);
       }
     }
     default:
-      throw new Error(`Unsupported method: ${payload.method}`);
+      throw new Error(`Unsupported method: ${method}`);
   }
 }
 
@@ -239,26 +243,49 @@ export default {
     try {
       payload = await request.json();
     } catch (error) {
-      return new Response(`Invalid JSON payload: ${error}`, {
-        status: 400,
-        headers: corsHeaders(),
-      });
-    }
-
-    try {
-      const data = await handleInvocation(env, payload);
-      return Response.json(
-        { success: true, data },
-        { headers: corsHeaders() }
-      );
-    } catch (error) {
       return Response.json(
         {
-          success: false,
-          error: error.message ?? String(error),
+          jsonrpc: "2.0",
+          id: null,
+          error: {
+            code: -32700,
+            message: "Invalid JSON payload",
+            data: String(error),
+          },
         },
         {
           status: 400,
+          headers: corsHeaders(),
+        }
+      );
+    }
+
+    try {
+      if (payload.jsonrpc && payload.jsonrpc !== "2.0") {
+        throw Object.assign(new Error("Unsupported jsonrpc version"), {
+          code: -32600,
+        });
+      }
+
+      const id = payload.id ?? null;
+      const result = await handleInvocation(env, payload);
+      return Response.json(
+        { jsonrpc: "2.0", id, result },
+        { headers: corsHeaders() }
+      );
+    } catch (error) {
+      const id = payload && "id" in payload ? payload.id : null;
+      return Response.json(
+        {
+          jsonrpc: "2.0",
+          id,
+          error: {
+            code: typeof error.code === "number" ? error.code : -32000,
+            message: error.message ?? String(error),
+          },
+        },
+        {
+          status: 200,
           headers: corsHeaders(),
         }
       );
