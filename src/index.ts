@@ -1,6 +1,34 @@
 const MOCHI_API_BASE = "https://api.mochi.cards/v1";
 
-const tools = [
+type ToolSchema = {
+  type: "object";
+  properties: Record<string, unknown>;
+  required?: string[];
+};
+
+type ToolDefinition = {
+  name: string;
+  description: string;
+  schema: ToolSchema;
+};
+
+type ToolInvocation = {
+  name?: string;
+  arguments?: Record<string, unknown>;
+};
+
+type McpRequest =
+  | { method: "listTools" }
+  | { method: "callTool"; params: ToolInvocation };
+
+type MochiDeck = Record<string, unknown>;
+type MochiCard = Record<string, unknown>;
+
+type Env = {
+  MOCHI_API_KEY: string;
+};
+
+const tools: ToolDefinition[] = [
   {
     name: "list_decks",
     description: "Fetch the list of decks available to the authenticated Mochi user.",
@@ -84,8 +112,8 @@ const tools = [
   },
 ];
 
-async function mochiFetch(path, init = {}, env) {
-  const headers = new Headers(init.headers || {});
+async function mochiFetch<T>(path: string, init: RequestInit, env: Env): Promise<T> {
+  const headers = new Headers(init.headers ?? {});
   headers.set("Authorization", `Bearer ${env.MOCHI_API_KEY}`);
   headers.set("Content-Type", "application/json");
 
@@ -100,50 +128,69 @@ async function mochiFetch(path, init = {}, env) {
   }
 
   if (!text) {
-    return null;
+    return null as unknown as T;
   }
 
   try {
-    return JSON.parse(text);
+    return JSON.parse(text) as T;
   } catch (error) {
     throw new Error(`Failed to parse Mochi API response: ${error}`);
   }
 }
 
-async function listDecks(env) {
-  return mochiFetch("/decks", { method: "GET" }, env);
+async function listDecks(env: Env): Promise<MochiDeck[]> {
+  return mochiFetch<MochiDeck[]>("/decks", { method: "GET" }, env);
 }
 
-async function listCards(env, args) {
+async function listCards(env: Env, args: Record<string, unknown>): Promise<MochiCard[]> {
   const { deckId, page, pageSize } = args;
+  if (typeof deckId !== "string") {
+    throw new Error("list_cards requires a string deckId");
+  }
+
   const params = new URLSearchParams();
-  if (page) {
+  if (typeof page === "number") {
     params.set("page", String(page));
   }
-  if (pageSize) {
+  if (typeof pageSize === "number") {
     params.set("page_size", String(pageSize));
   }
 
   const query = params.toString();
   const path = query ? `/decks/${deckId}/cards?${query}` : `/decks/${deckId}/cards`;
-  return mochiFetch(path, { method: "GET" }, env);
+  return mochiFetch<MochiCard[]>(path, { method: "GET" }, env);
 }
 
-async function createCard(env, args) {
+async function createCard(env: Env, args: Record<string, unknown>): Promise<MochiCard> {
+  const { deckId, front, back, tags } = args;
+  if (typeof deckId !== "string" || typeof front !== "string" || typeof back !== "string") {
+    throw new Error("create_card requires deckId, front, and back strings");
+  }
+
+  if (tags !== undefined && !Array.isArray(tags)) {
+    throw new Error("create_card tags must be an array of strings if provided");
+  }
+
   const body = JSON.stringify({
-    front: args.front,
-    back: args.back,
-    tags: args.tags ?? [],
+    front,
+    back,
+    tags: Array.isArray(tags) ? tags : [],
   });
-  return mochiFetch(`/decks/${args.deckId}/cards`, { method: "POST", body }, env);
+
+  return mochiFetch<MochiCard>(`/decks/${deckId}/cards`, { method: "POST", body }, env);
 }
 
-async function recordReview(env, args) {
-  const body = JSON.stringify({ rating: args.rating });
-  return mochiFetch(`/cards/${args.cardId}/reviews`, { method: "POST", body }, env);
+async function recordReview(env: Env, args: Record<string, unknown>): Promise<MochiCard> {
+  const { cardId, rating } = args;
+  if (typeof cardId !== "string" || typeof rating !== "string") {
+    throw new Error("record_review requires cardId and rating strings");
+  }
+
+  const body = JSON.stringify({ rating });
+  return mochiFetch<MochiCard>(`/cards/${cardId}/reviews`, { method: "POST", body }, env);
 }
 
-function manifest(env) {
+function manifest(env: Env) {
   return {
     name: "mochi",
     version: "0.1.0",
@@ -161,7 +208,7 @@ function manifest(env) {
   };
 }
 
-async function handleInvocation(env, payload) {
+async function handleInvocation(env: Env, payload: McpRequest) {
   switch (payload.method) {
     case "listTools":
       return { tools };
@@ -190,7 +237,7 @@ async function handleInvocation(env, payload) {
 }
 
 export default {
-  async fetch(request, env) {
+  async fetch(request: Request, env: Env) {
     const url = new URL(request.url);
 
     if (url.pathname === "/.well-known/mcp.json") {
@@ -201,9 +248,9 @@ export default {
       return new Response("Not Found", { status: 404 });
     }
 
-    let payload;
+    let payload: McpRequest;
     try {
-      payload = await request.json();
+      payload = (await request.json()) as McpRequest;
     } catch (error) {
       return new Response(`Invalid JSON payload: ${error}`, { status: 400 });
     }
@@ -212,10 +259,11 @@ export default {
       const data = await handleInvocation(env, payload);
       return Response.json({ success: true, data });
     } catch (error) {
+      const message = error instanceof Error ? error.message : String(error);
       return Response.json(
         {
           success: false,
-          error: error.message ?? String(error),
+          error: message,
         },
         { status: 400 }
       );
