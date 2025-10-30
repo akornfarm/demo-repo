@@ -1,4 +1,4 @@
-const MOCHI_API_BASE = "https://api.mochi.cards/v1";
+const MOCHI_API_BASE = "https://app.mochi.cards/api";
 
 const tools = [
   {
@@ -86,7 +86,9 @@ const tools = [
 
 async function mochiFetch(path, init = {}, env) {
   const headers = new Headers(init.headers || {});
-  headers.set("Authorization", `Bearer ${env.MOCHI_API_KEY}`);
+  // HTTP Basic Auth: username=API_KEY, password=empty
+  const credentials = btoa(`${env.MOCHI_API_KEY}:`);
+  headers.set("Authorization", `Basic ${credentials}`);
   headers.set("Content-Type", "application/json");
 
   const response = await fetch(`${MOCHI_API_BASE}${path}`, {
@@ -117,30 +119,40 @@ async function listDecks(env) {
 async function listCards(env, args) {
   const { deckId, page, pageSize } = args;
   const params = new URLSearchParams();
-  if (page) {
-    params.set("page", String(page));
+  if (deckId) {
+    params.set("deck-id", String(deckId));
   }
   if (pageSize) {
-    params.set("page_size", String(pageSize));
+    params.set("limit", String(pageSize));
+  }
+  if (page) {
+    // Mochi uses bookmark for pagination, not page numbers
+    // For now, we'll ignore page parameter
+    // TODO: Implement bookmark-based pagination
   }
 
   const query = params.toString();
-  const path = query ? `/decks/${deckId}/cards?${query}` : `/decks/${deckId}/cards`;
+  const path = query ? `/cards?${query}` : `/cards`;
   return mochiFetch(path, { method: "GET" }, env);
 }
 
 async function createCard(env, args) {
+  // Mochi API uses a single "content" field, not separate front/back
+  // Combine front and back with a separator
+  const content = `${args.front}\n\n---\n\n${args.back}`;
+
   const body = JSON.stringify({
-    front: args.front,
-    back: args.back,
-    tags: args.tags ?? [],
+    "content": content,
+    "deck-id": args.deckId,
+    "manual-tags": args.tags ?? [],
   });
-  return mochiFetch(`/decks/${args.deckId}/cards`, { method: "POST", body }, env);
+  return mochiFetch(`/cards`, { method: "POST", body }, env);
 }
 
 async function recordReview(env, args) {
-  const body = JSON.stringify({ rating: args.rating });
-  return mochiFetch(`/cards/${args.cardId}/reviews`, { method: "POST", body }, env);
+  // Note: The Mochi API documentation doesn't include a reviews endpoint
+  // This functionality may not be available via the public API
+  throw new Error("Review recording is not available in the Mochi API. This feature may require app-level interaction.");
 }
 
 function manifest(env) {
