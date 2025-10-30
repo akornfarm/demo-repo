@@ -212,56 +212,82 @@ function corsHeaders() {
 
 export default {
   async fetch(request, env) {
-    const url = new URL(request.url);
-
-    // Handle CORS preflight requests
-    if (request.method === "OPTIONS") {
-      return new Response(null, {
-        status: 204,
-        headers: corsHeaders(),
-      });
-    }
-
-    if (url.pathname === "/.well-known/mcp.json") {
-      return Response.json(manifest(env), {
-        headers: corsHeaders(),
-      });
-    }
-
-    if (request.method !== "POST") {
-      return new Response("Not Found", {
-        status: 404,
-        headers: corsHeaders(),
-      });
-    }
-
-    let payload;
     try {
-      payload = await request.json();
-    } catch (error) {
-      return new Response(`Invalid JSON payload: ${error}`, {
-        status: 400,
-        headers: corsHeaders(),
-      });
-    }
+      const url = new URL(request.url);
 
-    try {
-      const data = await handleInvocation(env, payload);
-      return Response.json(
-        { success: true, data },
-        { headers: corsHeaders() }
-      );
-    } catch (error) {
-      return Response.json(
-        {
-          success: false,
-          error: error.message ?? String(error),
-        },
-        {
+      // Handle CORS preflight requests
+      if (request.method === "OPTIONS") {
+        return new Response(null, {
+          status: 204,
+          headers: corsHeaders(),
+        });
+      }
+
+      // Serve MCP manifest for discovery
+      if (url.pathname === "/.well-known/mcp.json") {
+        return Response.json(manifest(env), {
+          status: 200,
+          headers: {
+            ...corsHeaders(),
+            "Content-Type": "application/json",
+          },
+        });
+      }
+
+      // Root path also serves manifest for convenience
+      if (url.pathname === "/" && request.method === "GET") {
+        return Response.json(manifest(env), {
+          status: 200,
+          headers: {
+            ...corsHeaders(),
+            "Content-Type": "application/json",
+          },
+        });
+      }
+
+      // Only accept POST for RPC calls
+      if (request.method !== "POST") {
+        return new Response("Not Found", {
+          status: 404,
+          headers: corsHeaders(),
+        });
+      }
+
+      let payload;
+      try {
+        payload = await request.json();
+      } catch (error) {
+        return new Response(`Invalid JSON payload: ${error}`, {
           status: 400,
           headers: corsHeaders(),
-        }
-      );
+        });
+      }
+
+      try {
+        const data = await handleInvocation(env, payload);
+        return Response.json(
+          { success: true, data },
+          { headers: corsHeaders() }
+        );
+      } catch (error) {
+        return Response.json(
+          {
+            success: false,
+            error: error.message ?? String(error),
+          },
+          {
+            status: 400,
+            headers: corsHeaders(),
+          }
+        );
+      }
+    } catch (error) {
+      // Catch any unexpected errors
+      console.error("Worker error:", error);
+      return new Response(`Internal Server Error: ${error.message ?? String(error)}`, {
+        status: 500,
+        headers: corsHeaders(),
+      });
     }
   },
 };
