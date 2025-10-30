@@ -14,7 +14,7 @@ The worker exposes a JSON-based MCP interface tailored for Mochi. It supports th
 ### Deployment
 
 1. Ensure [`wrangler`](https://developers.cloudflare.com/workers/wrangler/) is installed.
-2. Update `wrangler.toml` with your preferred worker name (the default `mochi-mcp-worker` works for testing) and review the `compatibility_date`.
+2. Update `wrangler.toml` with your preferred worker name (the repository defaults to `mochi-mcp` to match the Connected Builds deployment target) and review the `compatibility_date`.
 3. Deploy the worker: `npx wrangler deploy` (Wrangler will compile `src/index.ts` as defined in `wrangler.toml`).
 4. Configure the `MOCHI_API_KEY` secret in your Worker environment with a valid Mochi API token (generated from Mochi's developer settings): `npx wrangler secret put MOCHI_API_KEY`.
 5. Optionally configure routes or invoke the worker via `wrangler dev`.
