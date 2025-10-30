@@ -189,35 +189,66 @@ async function handleInvocation(env, payload) {
   }
 }
 
+function corsHeaders() {
+  return {
+    "Access-Control-Allow-Origin": "*",
+    "Access-Control-Allow-Methods": "GET, POST, OPTIONS",
+    "Access-Control-Allow-Headers": "Content-Type, Authorization",
+    "Access-Control-Max-Age": "86400",
+  };
+}
+
 export default {
   async fetch(request, env) {
     const url = new URL(request.url);
 
+    // Handle CORS preflight requests
+    if (request.method === "OPTIONS") {
+      return new Response(null, {
+        status: 204,
+        headers: corsHeaders(),
+      });
+    }
+
     if (url.pathname === "/.well-known/mcp.json") {
-      return Response.json(manifest(env));
+      return Response.json(manifest(env), {
+        headers: corsHeaders(),
+      });
     }
 
     if (request.method !== "POST") {
-      return new Response("Not Found", { status: 404 });
+      return new Response("Not Found", {
+        status: 404,
+        headers: corsHeaders(),
+      });
     }
 
     let payload;
     try {
       payload = await request.json();
     } catch (error) {
-      return new Response(`Invalid JSON payload: ${error}`, { status: 400 });
+      return new Response(`Invalid JSON payload: ${error}`, {
+        status: 400,
+        headers: corsHeaders(),
+      });
     }
 
     try {
       const data = await handleInvocation(env, payload);
-      return Response.json({ success: true, data });
+      return Response.json(
+        { success: true, data },
+        { headers: corsHeaders() }
+      );
     } catch (error) {
       return Response.json(
         {
           success: false,
           error: error.message ?? String(error),
         },
-        { status: 400 }
+        {
+          status: 400,
+          headers: corsHeaders(),
+        }
       );
     }
   },
