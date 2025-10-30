@@ -1,4 +1,4 @@
-name = "mochi-remote"
+name = "mochi-mcp"
 main = "workers/mochi-mcp-worker.js"
 compatibility_date = "2025-10-30"
 account_id = "467910be86777bf95ff8bd9e84e21b93"
