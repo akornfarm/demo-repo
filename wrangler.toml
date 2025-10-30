@@ -1,0 +1,7 @@
+name = "mochi-mcp"
+main = "workers/mochi-mcp-worker.js"
+compatibility_date = "2025-10-30"
+
+[env.production.vars]
+# MOCHI_API_KEY should be set as a secret in Cloudflare Dashboard
+# Do not add the actual API key here - use: wrangler secret put MOCHI_API_KEY
