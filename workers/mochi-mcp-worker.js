@@ -214,6 +214,16 @@ export default {
   async fetch(request, env) {
     const url = new URL(request.url);
 
+    // TEST: Simple response to verify worker is running
+    if (url.pathname === "/test") {
+      return new Response("Worker is running! ✅", {
+        headers: {
+          "Content-Type": "text/plain",
+          ...corsHeaders(),
+        },
+      });
+    }
+
     // Handle CORS preflight requests
     if (request.method === "OPTIONS") {
       return new Response(null, {
