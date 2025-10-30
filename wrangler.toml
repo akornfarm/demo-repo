@@ -1,0 +1,6 @@
+name = "mochi-mcp-worker"
+main = "workers/mochi-mcp-worker.js"
+compatibility_date = "2024-05-13"
+workers_dev = true
+[vars]
+# No static vars; MOCHI_API_KEY should be set as a secret via `wrangler secret put`.
