@@ -1,0 +1,7 @@
+name = "mochi-remote"
+main = "workers/mochi-mcp-worker.js"
+compatibility_date = "2025-10-30"
+account_id = "467910be86777bf95ff8bd9e84e21b93"
+
+# MOCHI_API_KEY should be set as a secret
+# Use: wrangler secret put MOCHI_API_KEY
